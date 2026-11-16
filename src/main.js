@@ -95,6 +95,8 @@ function writeSummary(matrix, skipped, source, facts) {
     '|---|---|---|',
     ...matrix.include.map((cell) => `| ${cell.magento} | ${cell.php} | ${cell.eol || 'n/a'} |`),
     '',
+    `PHP versions: ${[...new Set(matrix.include.map((cell) => cell.php))].join(', ')}.`,
+    '',
     `Source: ${source === 'live' ? '[magento.watch](https://magento.watch)' : source}${
       source === 'bundled' && facts._generated ? ` (facts from ${facts._generated})` : ''
     }. ${matrix.include.length} cell(s).`,
@@ -121,6 +123,10 @@ async function main() {
     console.log(`Magento ${cell.magento} / PHP ${cell.php}`);
   }
   setOutput('matrix', JSON.stringify(matrix));
+  const phpVersions = [...new Set(include.map((cell) => cell.php))].sort(
+    (a, b) => a.localeCompare(b, undefined, { numeric: true }),
+  );
+  setOutput('php', JSON.stringify(phpVersions));
   setOutput('cells', String(include.length));
   setOutput('source', source);
   writeSummary(matrix, skipped, source, facts);

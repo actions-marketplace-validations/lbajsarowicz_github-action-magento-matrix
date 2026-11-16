@@ -49,9 +49,11 @@ jobs:
         env:
           LIVE: ${{ steps.live.outputs.matrix }}
           LIVE_CELLS: ${{ steps.live.outputs.cells }}
+          LIVE_PHP: ${{ steps.live.outputs.php }}
           FROZEN_SOURCE: ${{ steps.frozen.outputs.source }}
         run: |
           set -euo pipefail
           echo "$LIVE" | jq -e '.include | length > 0 and all(.[]; (.magento | test("^[0-9]+\\.[0-9]+\\.[0-9]+(-p[0-9]+)?$")) and (.php | test("^[0-9]+\\.[0-9]+$")))'
           [ "$LIVE_CELLS" -ge 1 ]
+          echo "$LIVE_PHP" | jq -e 'length > 0 and all(.[]; test("^[0-9]+\\.[0-9]+$")) and (. == unique)'
           [ "$FROZEN_SOURCE" = "snapshot" ]

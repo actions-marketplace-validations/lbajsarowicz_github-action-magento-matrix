@@ -37,6 +37,8 @@ inputs:
 outputs:
   matrix:
     description: 'JSON object `{"include":[{"magento":"2.4.8-p5","php":"8.4",...}]}` for `strategy.matrix`.'
+  php:
+    description: 'JSON list of the distinct PHP versions in the matrix, such as `["8.2","8.3","8.4","8.5"]`, for checks that need PHP but no Magento.'
   cells:
     description: 'Number of cells in the matrix.'
   source:

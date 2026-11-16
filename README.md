@@ -41,6 +41,7 @@ jobs:
 | Output | Meaning |
 |---|---|
 | `matrix` | `{"include":[{"magento":"2.4.8-p5","php":"8.4","line":"2.4.8","eol":"2028-05-31"}]}` |
+| `php` | Distinct PHP versions in the matrix, such as `["8.2","8.3","8.4","8.5"]`, for jobs that need PHP but no Magento |
 | `cells` | Number of cells |
 | `source` | `live`, `snapshot` or `bundled` |
 
