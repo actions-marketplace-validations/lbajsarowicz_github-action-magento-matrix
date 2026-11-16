@@ -26,6 +26,13 @@ inputs:
       magento.watch and the matrix is built from this file only.
     required: false
     default: ''
+  send-repository:
+    description: >-
+      Add this repository's name to the `User-Agent` of the request to magento.watch, so the
+      maintainer can see which public projects use the action. Never sent for private
+      repositories. Set to `false` to send the action name and version only.
+    required: false
+    default: 'true'
 
 outputs:
   matrix:

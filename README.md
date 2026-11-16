@@ -34,6 +34,7 @@ jobs:
 | `php` | `boundaries` | `boundaries` (lowest and highest per release), `all`, `lowest`, `highest`, or a list such as `8.3,8.4` |
 | `max-cells` | `12` | The action fails when the matrix would be larger |
 | `snapshot` | empty | Path to a committed facts file; when set, magento.watch is not contacted |
+| `send-repository` | `true` | Add the repository name to the request's `User-Agent`; public repositories only |
 
 ## Outputs
 
@@ -45,7 +46,15 @@ jobs:
 
 ## Network and privacy
 
-The action makes one request: `GET https://magento.watch/api/v1/magento-community/versions/supported`, with a `User-Agent` naming the action and its version. No repository name, token or other identifier is sent.
+The action makes one request: `GET https://magento.watch/api/v1/magento-community/versions/supported`.
+
+Its `User-Agent` names the action and version and, for public repositories, the repository:
+
+```
+github-action-magento-matrix/v0 (+https://github.com/acme/module-example)
+```
+
+The repository name shows the maintainer which public projects use the action. It is never sent for a private repository, or when GitHub's event payload does not state that the repository is public. `send-repository: false` removes it everywhere. The exact header is printed in the job log on every run. No token or other identifier is sent.
 
 Only the release identifier, the PHP list and the end-of-support date are read from the response, and each is validated against a strict pattern. Nothing from the network can add commands, images or URLs to your workflow.
 

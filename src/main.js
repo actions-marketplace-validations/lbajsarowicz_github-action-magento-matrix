@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { randomUUID } = require('node:crypto');
 const { buildMatrix } = require('./select');
+const { buildUserAgent } = require('./user-agent');
 
 const FACTS_URL = 'https://magento.watch/api/v1/magento-community/versions/supported';
 const MAX_RESPONSE_BYTES = 1024 * 1024;
@@ -20,16 +21,25 @@ function setOutput(name, value) {
   fs.appendFileSync(process.env.GITHUB_OUTPUT, `${name}<<${delimiter}\n${value}\n${delimiter}\n`);
 }
 
-function actionVersion() {
-  return process.env.GITHUB_ACTION_REF || 'dev';
+function requestIdentity() {
+  const setting = input('send-repository', 'true').toLowerCase();
+  if (setting !== 'true' && setting !== 'false') {
+    throw new Error('Input "send-repository" must be true or false.');
+  }
+  return buildUserAgent({
+    version: process.env.GITHUB_ACTION_REF,
+    sendRepository: setting === 'true',
+    repository: process.env.GITHUB_REPOSITORY,
+    eventPath: process.env.GITHUB_EVENT_PATH,
+  });
 }
 
-async function fetchFacts() {
+async function fetchFacts(userAgent) {
   let lastError;
   for (let attempt = 1; attempt <= ATTEMPTS; attempt += 1) {
     try {
       const response = await fetch(FACTS_URL, {
-        headers: { accept: 'application/json', 'user-agent': `github-action-magento-matrix/${actionVersion()}` },
+        headers: { accept: 'application/json', 'user-agent': userAgent },
         signal: AbortSignal.timeout(TIMEOUT_MS),
         redirect: 'error',
       });
@@ -60,8 +70,14 @@ async function loadFacts(snapshot) {
     const file = path.resolve(process.env.GITHUB_WORKSPACE || process.cwd(), snapshot);
     return { facts: readJson(file), source: 'snapshot' };
   }
+  const identity = requestIdentity();
+  console.log(`Requesting ${FACTS_URL}`);
+  console.log(`User-Agent: ${identity.userAgent}`);
+  if (!identity.repositorySent) {
+    console.log(`Repository name not sent: ${identity.reason}.`);
+  }
   try {
-    return { facts: await fetchFacts(), source: 'live' };
+    return { facts: await fetchFacts(identity.userAgent), source: 'live' };
   } catch (error) {
     console.log(`::warning::magento.watch could not be reached (${error.message}); using the facts bundled with this action.`);
     return { facts: readJson(path.join(__dirname, '..', 'snapshot.json')), source: 'bundled' };
