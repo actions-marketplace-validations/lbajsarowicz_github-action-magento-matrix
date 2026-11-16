@@ -1,0 +1,57 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: npm test
+
+  self:
+    name: Run the action
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: live
+        uses: ./ # zizmor: ignore[self-repository] actionlint 1.7 rejects the $/ form
+      - id: frozen
+        uses: ./ # zizmor: ignore[self-repository] actionlint 1.7 rejects the $/ form
+        with:
+          snapshot: snapshot.json
+          versions: latest
+          php: all
+      - name: Check outputs
+        env:
+          LIVE: ${{ steps.live.outputs.matrix }}
+          LIVE_CELLS: ${{ steps.live.outputs.cells }}
+          FROZEN_SOURCE: ${{ steps.frozen.outputs.source }}
+        run: |
+          set -euo pipefail
+          echo "$LIVE" | jq -e '.include | length > 0 and all(.[]; (.magento | test("^[0-9]+\\.[0-9]+\\.[0-9]+(-p[0-9]+)?$")) and (.php | test("^[0-9]+\\.[0-9]+$")))'
+          [ "$LIVE_CELLS" -ge 1 ]
+          [ "$FROZEN_SOURCE" = "snapshot" ]

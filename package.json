@@ -1,0 +1,11 @@
+{
+  "name": "github-action-magento-matrix",
+  "private": true,
+  "license": "MIT",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

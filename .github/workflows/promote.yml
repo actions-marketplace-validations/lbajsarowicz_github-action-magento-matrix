@@ -1,0 +1,120 @@
+name: Promote release candidate
+
+# Fires when a maintainer unchecks "pre-release" on an rc release. The same release is retagged to
+# the full version, so consumers get exactly the commit that was tested as the candidate.
+on:
+  release:
+    types: [released]
+
+permissions: {}
+
+concurrency:
+  group: promote
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote to stable
+    if: github.event.release.prerelease == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create tags and releases
+    env:
+      RC_TAG: ${{ github.event.release.tag_name }}
+    steps:
+      - name: Check tag shape
+        id: check
+        run: |
+          set -euo pipefail
+          if [[ "$RC_TAG" =~ ^v([0-9]+\.[0-9]+\.[0-9]+)-rc\.[0-9]+$ ]]; then
+            echo "promote=true" >> "$GITHUB_OUTPUT"
+            echo "version=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::'$RC_TAG' is not a release candidate tag; nothing to promote."
+            echo "promote=false" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v7
+        if: steps.check.outputs.promote == 'true'
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve commit and moving tag
+        if: steps.check.outputs.promote == 'true'
+        id: plan
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+        run: |
+          set -euo pipefail
+          if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+            echo "::error::v${VERSION} already exists; an rc of a released version cannot be promoted."
+            exit 1
+          fi
+          sha="$(git rev-parse "${RC_TAG}^{commit}")"
+          stable="$(git tag --list 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true)"
+          all="$(printf '%s\nv%s\n' "$stable" "$VERSION" | sed '/^$/d' | sort -V)"
+          prev="$(printf '%s\n' "$all" | grep -B1 -x "v${VERSION}" | head -1)"
+          [ "$prev" = "v${VERSION}" ] && prev=""
+          major="${VERSION%%.*}"
+          # A patch on an older line must not move the major tag backwards.
+          move_major=false
+          [ "$(printf '%s\n' "$all" | grep -E "^v${major}\.[0-9]+\.[0-9]+$" | tail -1)" = "v${VERSION}" ] && move_major=true
+          latest=false
+          [ "$(printf '%s\n' "$all" | tail -1)" = "v${VERSION}" ] && latest=true
+          {
+            echo "sha=${sha}"
+            echo "major=v${major}"
+            echo "move_major=${move_major}"
+            echo "latest=${latest}"
+            echo "range=${prev:+${prev}..HEAD}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::v${VERSION} at ${sha}, previous stable '${prev:-none}'"
+      - name: git-cliff changelog
+        if: steps.check.outputs.promote == 'true'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          version: v2.14.2
+          config: cliff.toml
+          args: ${{ steps.plan.outputs.range }} --tag v${{ steps.check.outputs.version }} --strip all
+        env:
+          OUTPUT: ${{ runner.temp }}/release-notes.md
+      - name: Retag the release to the full version
+        if: steps.check.outputs.promote == 'true'
+        uses: actions/github-script@v9
+        env:
+          VERSION: ${{ steps.check.outputs.version }}
+          SHA: ${{ steps.plan.outputs.sha }}
+          MAJOR: ${{ steps.plan.outputs.major }}
+          MOVE_MAJOR: ${{ steps.plan.outputs.move_major }}
+          LATEST: ${{ steps.plan.outputs.latest }}
+          RELEASE_ID: ${{ github.event.release.id }}
+          NOTES_FILE: ${{ runner.temp }}/release-notes.md
+        with:
+          script: |
+            const fs = require('fs');
+            const { VERSION, RC_TAG, SHA, MAJOR, MOVE_MAJOR, LATEST, RELEASE_ID, NOTES_FILE } = process.env;
+            const { owner, repo } = context.repo;
+            const tagName = `v${VERSION}`;
+            const tag = await github.rest.git.createTag({
+              owner, repo, tag: tagName, type: 'commit', object: SHA,
+              message: `Release ${tagName} (promoted from ${RC_TAG})`,
+            });
+            await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${tagName}`, sha: tag.data.sha });
+            const notes = fs.readFileSync(NOTES_FILE, 'utf8').trim() || '_No user-facing changes._';
+            await github.rest.repos.updateRelease({
+              owner, repo, release_id: Number(RELEASE_ID),
+              tag_name: tagName, name: tagName,
+              body: `${notes}\n\nPromoted from ${RC_TAG}.\n`,
+              prerelease: false, make_latest: LATEST === 'true' ? 'true' : 'false',
+            });
+            if (MOVE_MAJOR === 'true') {
+              // The moving major tag carries no release of its own, so it can follow each promotion.
+              try {
+                await github.rest.git.updateRef({ owner, repo, ref: `tags/${MAJOR}`, sha: SHA, force: true });
+              } catch (error) {
+                if (error.status !== 422 && error.status !== 404) throw error;
+                await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${MAJOR}`, sha: SHA });
+              }
+            }
+            core.notice(`Released ${tagName}${MOVE_MAJOR === 'true' ? `, ${MAJOR} now points at it` : ''}`);

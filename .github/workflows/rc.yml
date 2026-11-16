@@ -1,0 +1,90 @@
+name: Release candidate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+# Global, not per branch: two runs computing the next rc number at once would pick the same N.
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
+
+jobs:
+  rc:
+    name: Tag release candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write # create tags and releases
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: git-cliff --bumped-version
+        id: bump
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          version: v2.14.2
+          config: cliff.toml
+          args: --use-branch-tags --bumped-version
+        env:
+          OUTPUT: ${{ runner.temp }}/bumped-version.txt
+      - name: Compute rc tag
+        id: next
+        env:
+          BUMPED: ${{ steps.bump.outputs.content }}
+        run: |
+          set -euo pipefail
+          next="$(printf '%s' "$BUMPED" | tr -d '[:space:]')"
+          next="${next#v}"
+          [[ "$next" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::git-cliff returned '$BUMPED'"; exit 1; }
+          # On a commit that already carries a stable tag git-cliff prints that tag: nothing to bump.
+          if git rev-parse -q --verify "refs/tags/v${next}" >/dev/null; then
+            echo "::notice::v${next} is already released; no release candidate created."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          last="$(git tag --list "v${next}-rc.*" | sed -n "s/^v${next//./\\.}-rc\.\([0-9]*\)$/\1/p" | sort -n | tail -1)"
+          n=$(( ${last:-0} + 1 ))
+          base="$(git tag --list 'v*' --merged HEAD | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1 || true)"
+          {
+            echo "skip=false"
+            echo "tag=v${next}-rc.${n}"
+            echo "range=${base:+${base}..HEAD}"
+          } >> "$GITHUB_OUTPUT"
+          echo "::notice::base '${base:-none}', next v${next}-rc.${n}"
+      - name: git-cliff release notes
+        if: steps.next.outputs.skip == 'false'
+        uses: orhun/git-cliff-action@a9a95522b26fe6403f7bb24031f21fb573d0f5ff # v4.9.1
+        with:
+          version: v2.14.2
+          config: cliff.toml
+          args: ${{ steps.next.outputs.range }} --tag ${{ steps.next.outputs.tag }} --strip all
+        env:
+          OUTPUT: ${{ runner.temp }}/rc-notes.md
+      - name: Create tag and pre-release
+        if: steps.next.outputs.skip == 'false'
+        uses: actions/github-script@v9
+        env:
+          TAG: ${{ steps.next.outputs.tag }}
+          NOTES_FILE: ${{ runner.temp }}/rc-notes.md
+        with:
+          script: |
+            const fs = require('fs');
+            const { TAG, NOTES_FILE } = process.env;
+            const { owner, repo } = context.repo;
+            const tag = await github.rest.git.createTag({
+              owner, repo, tag: TAG, type: 'commit', object: context.sha,
+              message: `Release candidate ${TAG}`,
+            });
+            await github.rest.git.createRef({ owner, repo, ref: `refs/tags/${TAG}`, sha: tag.data.sha });
+            const notes = fs.readFileSync(NOTES_FILE, 'utf8').trim() || '_No user-facing changes._';
+            await github.rest.repos.createRelease({
+              owner, repo, tag_name: TAG, name: TAG, body: notes,
+              prerelease: true, make_latest: 'false',
+            });
+            core.notice(`Created ${TAG} at ${context.sha}`);

@@ -1,0 +1,44 @@
+name: 'Magento Version Matrix'
+description: 'Builds a GitHub Actions matrix of supported Magento releases and PHP versions from magento.watch'
+author: 'lbajsarowicz'
+
+inputs:
+  versions:
+    description: >-
+      Which Magento releases to include: `supported-latest` (newest patch of every supported
+      release line), `latest` (newest release only), `supported-all` (every supported patch
+      release) or a comma-separated list of exact releases such as `2.4.8-p5,2.4.9`.
+    required: false
+    default: 'supported-latest'
+  php:
+    description: >-
+      Which PHP versions to include per release: `boundaries` (lowest and highest supported),
+      `all`, `lowest`, `highest` or a comma-separated list of minors such as `8.3,8.4`.
+    required: false
+    default: 'boundaries'
+  max-cells:
+    description: 'Fail when the matrix would hold more cells than this.'
+    required: false
+    default: '12'
+  snapshot:
+    description: >-
+      Path to a committed facts file in the workspace. When set, no request is made to
+      magento.watch and the matrix is built from this file only.
+    required: false
+    default: ''
+
+outputs:
+  matrix:
+    description: 'JSON object `{"include":[{"magento":"2.4.8-p5","php":"8.4",...}]}` for `strategy.matrix`.'
+  cells:
+    description: 'Number of cells in the matrix.'
+  source:
+    description: 'Where the facts came from: `live`, `snapshot` or `bundled`.'
+
+runs:
+  using: 'node24'
+  main: 'src/main.js'
+
+branding:
+  icon: 'grid'
+  color: 'orange'
