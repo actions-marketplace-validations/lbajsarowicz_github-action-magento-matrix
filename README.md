@@ -1,6 +1,13 @@
 # Magento Version Matrix
 
+[![CI](https://github.com/lbajsarowicz/github-action-magento-matrix/actions/workflows/ci.yml/badge.svg)](https://github.com/lbajsarowicz/github-action-magento-matrix/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/lbajsarowicz/github-action-magento-matrix?sort=semver)](https://github.com/lbajsarowicz/github-action-magento-matrix/releases/latest)
+[![GitHub Marketplace](https://img.shields.io/badge/marketplace-magento--version--matrix-blue?logo=github)](https://github.com/marketplace/actions/magento-version-matrix)
+[![License: MIT](https://img.shields.io/github/license/lbajsarowicz/github-action-magento-matrix)](LICENSE)
+
 Builds a GitHub Actions matrix of supported Magento Open Source releases and their PHP versions from [magento.watch](https://magento.watch). When Adobe ships a new patch release, the matrix follows without an edit to your workflow.
+
+To run real checks in every cell (coding standard, install, DI compile, PHPUnit, PHPStan), pair it with [Magento Extension Check](https://github.com/marketplace/actions/magento-extension-check).
 
 ## Usage
 
@@ -13,7 +20,7 @@ jobs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
       - id: matrix
-        uses: lbajsarowicz/github-action-magento-matrix@v0
+        uses: lbajsarowicz/github-action-magento-matrix@v1
 
   test:
     needs: matrix
@@ -52,7 +59,7 @@ The action makes one request: `GET https://magento.watch/api/v1/magento-communit
 Its `User-Agent` names the action and version and, for public repositories, the repository:
 
 ```
-github-action-magento-matrix/v0 (+https://github.com/acme/module-example)
+github-action-magento-matrix/v1 (+https://github.com/acme/module-example)
 ```
 
 The repository name shows the maintainer which public projects use the action. It is never sent for a private repository, or when GitHub's event payload does not state that the repository is public. `send-repository: false` removes it everywhere. The exact header is printed in the job log on every run. No token or other identifier is sent.
@@ -67,7 +74,7 @@ None. The action reads no repository content and needs no token.
 
 ## Releases
 
-Every merge to `main` publishes a release candidate (`vX.Y.Z-rc.N`). Marking a candidate as a full release retags it to `vX.Y.Z` and moves the major tag.
+Every merge to `main` publishes a release candidate (`vX.Y.Z-rc.N`). Marking a candidate as a full release retags it to `vX.Y.Z` and moves the major tag. Pin `@v1` to follow compatible releases, or a full `vX.Y.Z` tag or commit SHA to stay on one.
 
 ## License
 
