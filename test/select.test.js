@@ -73,5 +73,14 @@ test('only whitelisted fields reach the matrix', () => {
     { data: { '2.4.9': { systemRequirements: { php: ['8.5'] }, eolDate: '2029-05-31', image: 'evil/image', run: 'curl x | sh' } } },
     { versions: 'latest', php: 'all', maxCells: 12 },
   );
-  assert.deepEqual(Object.keys(result.include[0]).sort(), ['eol', 'line', 'magento', 'php']);
+  assert.deepEqual(Object.keys(result.include[0]).sort(), ['eol', 'line', 'magento', 'mariadb', 'opensearch', 'php']);
+});
+
+test('service versions are numbers only, highest first', () => {
+  const result = buildMatrix(
+    { data: { '2.4.9': { systemRequirements: { php: ['8.5'], mariadb: ['11.8', '12.3', 'evil/image:latest'], opensearch: ['2.19', '3'] } } } },
+    { versions: 'latest', php: 'all', maxCells: 12 },
+  );
+  assert.equal(result.include[0].mariadb, '12.3');
+  assert.equal(result.include[0].opensearch, '3');
 });

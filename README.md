@@ -40,7 +40,7 @@ jobs:
 
 | Output | Meaning |
 |---|---|
-| `matrix` | `{"include":[{"magento":"2.4.8-p5","php":"8.4","line":"2.4.8","eol":"2028-05-31"}]}` |
+| `matrix` | `{"include":[{"magento":"2.4.8-p5","php":"8.4","line":"2.4.8","eol":"2028-05-31","mariadb":"11.8","opensearch":"3"}]}`; `mariadb` and `opensearch` are the highest versions that release supports, for service containers |
 | `php` | Distinct PHP versions in the matrix, such as `["8.2","8.3","8.4","8.5"]`, for jobs that need PHP but no Magento |
 | `cells` | Number of cells |
 | `source` | `live`, `snapshot` or `bundled` |
@@ -57,7 +57,7 @@ github-action-magento-matrix/v0 (+https://github.com/acme/module-example)
 
 The repository name shows the maintainer which public projects use the action. It is never sent for a private repository, or when GitHub's event payload does not state that the repository is public. `send-repository: false` removes it everywhere. The exact header is printed in the job log on every run. No token or other identifier is sent.
 
-Only the release identifier, the PHP list and the end-of-support date are read from the response, and each is validated against a strict pattern. Nothing from the network can add commands, images or URLs to your workflow.
+Only the release identifier, the PHP list, the end-of-support date and the MariaDB and OpenSearch version numbers are read from the response, and each is validated against a strict pattern. Nothing from the network can add commands, images or URLs to your workflow.
 
 If magento.watch cannot be reached, the action warns and uses the facts bundled with the release you pinned. To run without any request, commit a facts file and pass it as `snapshot`.
 

@@ -30,7 +30,18 @@ function comparePhp(a, b) {
 }
 
 /**
- * Only version, PHP list and end-of-life date are taken from the facts. Everything else in the
+ * Service versions are numbers only; the workflow that uses them names the image itself.
+ */
+function highestVersion(list) {
+  if (!Array.isArray(list)) {
+    return '';
+  }
+  const valid = list.filter((v) => typeof v === 'string' && /^\d+(\.\d+){0,2}$/.test(v));
+  return valid.sort(comparePhp).pop() ?? '';
+}
+
+/**
+ * Only version, PHP list, end-of-life date and two service version numbers are taken from the facts. Everything else in the
  * response is ignored, so remote data can never carry commands, images or URLs into a workflow.
  */
 function normalizeFacts(raw) {
@@ -48,8 +59,10 @@ function normalizeFacts(raw) {
     if (!Array.isArray(php) || php.length === 0 || !php.every((v) => typeof v === 'string' && PHP.test(v))) {
       throw new Error(`Facts for ${key} have no valid PHP list.`);
     }
+    const mariadb = highestVersion(entry.systemRequirements.mariadb);
+    const opensearch = highestVersion(entry.systemRequirements.opensearch).split('.')[0];
     const eol = typeof entry.eolDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(entry.eolDate) ? entry.eolDate : '';
-    releases.push({ ...parsed, php: [...new Set(php)].sort(comparePhp), eol });
+    releases.push({ ...parsed, php: [...new Set(php)].sort(comparePhp), eol, mariadb, opensearch });
   }
   if (releases.length === 0) {
     throw new Error('Facts list no releases.');
@@ -126,7 +139,14 @@ function buildMatrix(raw, { versions, php, maxCells }) {
       continue;
     }
     for (const phpVersion of phpVersions) {
-      include.push({ magento: release.version, php: phpVersion, line: release.line, eol: release.eol });
+      include.push({
+        magento: release.version,
+        php: phpVersion,
+        line: release.line,
+        eol: release.eol,
+        mariadb: release.mariadb,
+        opensearch: release.opensearch,
+      });
     }
   }
   if (include.length === 0) {
