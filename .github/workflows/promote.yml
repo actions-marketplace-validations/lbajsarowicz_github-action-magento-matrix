@@ -34,7 +34,7 @@ jobs:
             echo "::notice::'$RC_TAG' is not a release candidate tag; nothing to promote."
             echo "promote=false" >> "$GITHUB_OUTPUT"
           fi
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v7.0.1
         if: steps.check.outputs.promote == 'true'
         with:
           ref: ${{ github.event.release.tag_name }}
